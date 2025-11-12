@@ -527,6 +527,8 @@ dependencies = [
  "chrono",
  "ed25519-dalek",
  "idna",
+ "indexmap",
+ "native-tls",
  "quick-xml",
  "rand 0.8.5",
  "reqwest",
