@@ -177,13 +177,45 @@ Based on the Go version (~/projects/rest):
 
 ## Testing
 
-Run tests with:
+### Unit Tests
+
+Run unit tests with:
 
 ```bash
-cargo test
+cargo test --lib
 ```
 
-All tests pass successfully (15 tests).
+All unit tests pass successfully (15 tests).
+
+### Integration Tests
+
+Integration tests use actual API endpoints (`Misc/Debug:*`) and are marked with `#[ignore]` by default.
+
+To run all integration tests:
+
+```bash
+cargo test --tests -- --ignored
+```
+
+To run specific test suites:
+
+```bash
+# Run only REST API tests (8 tests)
+cargo test --test integration_tests -- --ignored
+
+# Run only upload tests (6 tests)
+cargo test --test upload_tests -- --ignored
+```
+
+Integration tests verify:
+- REST API calls with various endpoints
+- Error handling and unwrapping
+- Parameter passing and response parsing
+- File uploads (empty, small, large files)
+- Upload progress tracking
+- SHA256 verification of uploaded files
+
+See `tests/README.md` for more details.
 
 ## License
 
