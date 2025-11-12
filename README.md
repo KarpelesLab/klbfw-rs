@@ -13,6 +13,12 @@ This library provides a comprehensive client for interacting with RESTful API se
 - **Robust Error Handling**: Detailed error types with conversion to Rust standard error types
 - **Custom Time Type**: Handles API timestamps with microsecond precision
 - **Response Parsing**: Path-based value access in responses
+- **File Upload Support**:
+  - Direct PUT uploads for small files
+  - Multipart uploads for medium files
+  - AWS S3 multipart uploads for large files (with automatic part size calculation)
+  - Progress tracking callbacks
+  - Parallel upload support
 - **Blocking HTTP Client**: Built on reqwest with connection pooling and timeouts
 
 ## Installation
@@ -99,6 +105,35 @@ let config = Config::new(
 let ctx = RestContext::with_config(config);
 ```
 
+### File Upload
+
+```rust
+use klbfw::{upload, RestContext};
+use std::fs::File;
+use std::collections::HashMap;
+
+let ctx = RestContext::new();
+let file = File::open("largefile.dat")?;
+
+// Upload with progress tracking
+let response = upload(
+    &ctx,
+    "Files/Upload",
+    "POST",
+    HashMap::new(),
+    file,
+    "application/octet-stream",
+    Some(Box::new(|bytes| {
+        println!("Uploaded {} bytes", bytes);
+    })),
+)?;
+```
+
+The library automatically chooses the best upload method:
+- **Direct PUT**: For files < 5GB with known size
+- **Multipart Upload**: For medium files when server provides blocksize
+- **AWS S3 Multipart**: For large files (>64MB) with automatic part size calculation
+
 ## Implemented Features
 
 Based on the Go version (~/projects/rest):
@@ -122,6 +157,14 @@ Based on the Go version (~/projects/rest):
 - ✅ Request/response handling
 - ✅ Error parsing and handling
 
+### File Upload
+- ✅ Direct PUT upload for small files
+- ✅ Multipart/chunked upload
+- ✅ AWS S3 multipart upload for large files
+- ✅ Progress tracking callbacks
+- ✅ Parallel upload support
+- ✅ Automatic upload method selection
+
 ## Differences from Go Version
 
 1. **Blocking vs Async**: This Rust version currently implements a blocking client using `reqwest::blocking`. The Go version uses standard `http.Client` which is also blocking.
@@ -140,7 +183,7 @@ Run tests with:
 cargo test
 ```
 
-All tests pass successfully (14 tests).
+All tests pass successfully (15 tests).
 
 ## License
 
@@ -155,5 +198,7 @@ This is a direct port of the Go library from `~/projects/rest`. Key features imp
 - Error types matching Go implementation
 - Token and API key authentication
 - HTTP client configuration
+- File upload with multiple strategies (PUT, multipart, AWS S3)
+- Progress tracking and parallel uploads
 
 The implementation maintains compatibility with the existing API while following Rust idioms and best practices.

@@ -78,6 +78,7 @@ pub mod response;
 pub mod rest;
 pub mod time;
 pub mod token;
+pub mod upload;
 
 // Re-export main types for convenience
 pub use apikey::ApiKey;
@@ -87,6 +88,7 @@ pub use response::{Param, Response};
 pub use rest::{apply, do_request, RestContext};
 pub use time::Time;
 pub use token::Token;
+pub use upload::{upload, UploadInfo, UploadProgressFn};
 
 // Re-export serde_json for convenience
 pub use serde_json::json;

@@ -53,6 +53,10 @@ pub enum RestError {
     #[error("Base64 decode error: {0}")]
     Base64Decode(#[from] base64::DecodeError),
 
+    /// IO error
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
     /// Other errors
     #[error("{0}")]
     Other(String),
