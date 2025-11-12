@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.70"
 authors = ["KarpelesLab"]
-description = "Rust client for interacting with RESTful API services"
+description = "Comprehensive REST API client with OAuth2, API key authentication, and file upload support"
 license = "MIT"
+repository = "https://github.com/KarpelesLab/klbfw-rs"
+homepage = "https://github.com/KarpelesLab/klbfw-rs"
+documentation = "https://docs.rs/klbfw"
+readme = "README.md"
+keywords = ["rest", "api", "client", "http", "oauth2"]
+categories = ["api-bindings", "network-programming", "web-programming::http-client"]
 
 [dependencies]
 # HTTP client
