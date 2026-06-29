@@ -1,5 +1,10 @@
 # klbfw-rs
 
+[![crates.io](https://img.shields.io/crates/v/klbfw.svg)](https://crates.io/crates/klbfw)
+[![docs.rs](https://img.shields.io/docsrs/klbfw)](https://docs.rs/klbfw)
+[![MSRV](https://img.shields.io/badge/rust-1.88%2B-blue.svg)](https://www.rust-lang.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/KarpelesLab/klbfw-rs)
+
 A Rust implementation of the KarpelesLab REST Framework client library.
 
 This library provides a comprehensive client for interacting with RESTful API services, featuring authentication, token renewal, and response parsing.
