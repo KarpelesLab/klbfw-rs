@@ -44,7 +44,7 @@ impl ApiKey {
                 // Fallback to standard base64
                 base64::engine::general_purpose::STANDARD.decode(secret)
             })
-            .map_err(|e| RestError::Base64Decode(e))?;
+            .map_err(RestError::Base64Decode)?;
 
         // Ed25519 secret keys are 32 bytes, but we may receive a 64-byte keypair
         let secret_key = if decoded.len() == 32 {

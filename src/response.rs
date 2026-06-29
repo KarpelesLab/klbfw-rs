@@ -117,11 +117,17 @@ impl Response {
         }
 
         if let Some(ref redirect_url) = self.redirect_url {
-            map.insert("redirect_url".to_string(), Value::String(redirect_url.clone()));
+            map.insert(
+                "redirect_url".to_string(),
+                Value::String(redirect_url.clone()),
+            );
         }
 
         if let Some(redirect_code) = self.redirect_code {
-            map.insert("redirect_code".to_string(), Value::Number(redirect_code.into()));
+            map.insert(
+                "redirect_code".to_string(),
+                Value::Number(redirect_code.into()),
+            );
         }
 
         map
@@ -161,7 +167,8 @@ impl Response {
 
     /// Get a string value from the response data by a slash-separated path
     pub fn get_string(&self, path: &str) -> Option<String> {
-        self.get(path).and_then(|v| v.as_str().map(|s| s.to_string()))
+        self.get(path)
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
     }
 
     /// Get metadata fields with @ prefix

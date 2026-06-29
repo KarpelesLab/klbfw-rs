@@ -1,5 +1,6 @@
 # klbfw-rs
 
+[![CI](https://github.com/KarpelesLab/klbfw-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/KarpelesLab/klbfw-rs/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/klbfw.svg)](https://crates.io/crates/klbfw)
 [![docs.rs](https://img.shields.io/docsrs/klbfw)](https://docs.rs/klbfw)
 [![MSRV](https://img.shields.io/badge/rust-1.88%2B-blue.svg)](https://www.rust-lang.org)

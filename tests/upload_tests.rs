@@ -72,7 +72,10 @@ fn test_upload_put_only() {
     println!("Expected hash: {}", expected_hash);
 
     let mut params = HashMap::new();
-    params.insert("filename".to_string(), serde_json::json!("test_put_only.bin"));
+    params.insert(
+        "filename".to_string(),
+        serde_json::json!("test_put_only.bin"),
+    );
     params.insert("put_only".to_string(), serde_json::json!(true));
 
     let reader = Cursor::new(data);
@@ -159,7 +162,10 @@ fn test_upload_empty_put_only() {
     let expected_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
     let mut params = HashMap::new();
-    params.insert("filename".to_string(), serde_json::json!("empty_put_only.bin"));
+    params.insert(
+        "filename".to_string(),
+        serde_json::json!("empty_put_only.bin"),
+    );
     params.insert("put_only".to_string(), serde_json::json!(true));
 
     let reader = Cursor::new(data);
@@ -247,7 +253,10 @@ fn test_upload_with_progress() {
     println!("Testing upload with progress tracking (5MB)...");
 
     let mut params = HashMap::new();
-    params.insert("filename".to_string(), serde_json::json!("test_progress.bin"));
+    params.insert(
+        "filename".to_string(),
+        serde_json::json!("test_progress.bin"),
+    );
 
     let reader = Cursor::new(data);
 

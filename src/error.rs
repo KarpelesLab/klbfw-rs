@@ -10,7 +10,7 @@ pub enum RestError {
         message: String,
         code: Option<i32>,
         request_id: Option<String>,
-        response: Response,
+        response: Box<Response>,
     },
 
     /// HTTP transport error
@@ -76,23 +76,43 @@ impl RestError {
             message,
             code,
             request_id,
-            response,
+            response: Box::new(response),
         }
     }
 
     /// Create a new HTTP error
-    pub fn http(status: u16, body: String, source: Option<Box<dyn std::error::Error + Send + Sync>>) -> Self {
-        RestError::Http { status, body, source }
+    pub fn http(
+        status: u16,
+        body: String,
+        source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    ) -> Self {
+        RestError::Http {
+            status,
+            body,
+            source,
+        }
     }
 
     /// Check if this error is a permission denied error (403)
     pub fn is_permission_denied(&self) -> bool {
-        matches!(self, RestError::Api { code: Some(403), .. })
+        matches!(
+            self,
+            RestError::Api {
+                code: Some(403),
+                ..
+            }
+        )
     }
 
     /// Check if this error is a not found error (404)
     pub fn is_not_found(&self) -> bool {
-        matches!(self, RestError::Api { code: Some(404), .. })
+        matches!(
+            self,
+            RestError::Api {
+                code: Some(404),
+                ..
+            }
+        )
     }
 
     /// Get the HTTP status code if this is an API error

@@ -119,17 +119,15 @@ pub fn upload<R: Read + Seek>(
     progress: Option<UploadProgressFn>,
 ) -> Result<Response> {
     // Try to determine file size
-    let file_size = reader
-        .seek(SeekFrom::End(0))
-        .ok()
-        .and_then(|size| {
-            reader.seek(SeekFrom::Start(0)).ok()?;
-            Some(size as i64)
-        });
+    let file_size = reader.seek(SeekFrom::End(0)).ok().and_then(|size| {
+        reader.seek(SeekFrom::Start(0)).ok()?;
+        Some(size as i64)
+    });
 
     // Add size to params if known
     if let Some(size) = file_size {
-        params.entry("size".to_string())
+        params
+            .entry("size".to_string())
             .or_insert(Value::Number(size.into()));
     }
 
@@ -187,7 +185,10 @@ impl UploadInfo {
         }
 
         // Check for AWS S3 parameters
-        if let Some(aws_id) = req.get("Cloud_Aws_Bucket_Upload__").and_then(|v| v.as_str()) {
+        if let Some(aws_id) = req
+            .get("Cloud_Aws_Bucket_Upload__")
+            .and_then(|v| v.as_str())
+        {
             if let Some(bucket) = req.get("Bucket_Endpoint").and_then(|v| v.as_object()) {
                 if let (Some(key), Some(region), Some(name), Some(host)) = (
                     req.get("Key").and_then(|v| v.as_str()),
@@ -389,7 +390,9 @@ impl UploadInfo {
         // Calculate optimal part size
         if let Some(size) = file_size {
             if size > 5 * 1024 * 1024 * 1024 * 1024 {
-                return Err(RestError::Other("File exceeds AWS S3 5TB limit".to_string()));
+                return Err(RestError::Other(
+                    "File exceeds AWS S3 5TB limit".to_string(),
+                ));
             }
             let part_size = (size / (10000 * 1024 * 1024)).max(5);
             self.max_part_size = part_size;
@@ -460,7 +463,9 @@ impl UploadInfo {
         let mut file = temp_file.reopen()?;
         file.seek(SeekFrom::Start(0))?;
 
-        let upload_id = self.aws_upload_id.as_ref()
+        let upload_id = self
+            .aws_upload_id
+            .as_ref()
             .ok_or_else(|| RestError::Other("AWS upload not initialized".to_string()))?;
 
         let query = format!("partNumber={}&uploadId={}", part_no, upload_id);
@@ -523,7 +528,9 @@ impl UploadInfo {
         }
         xml.push_str("</CompleteMultipartUpload>");
 
-        let upload_id = self.aws_upload_id.as_ref()
+        let upload_id = self
+            .aws_upload_id
+            .as_ref()
             .ok_or_else(|| RestError::Other("AWS upload not initialized".to_string()))?;
 
         let query = format!("uploadId={}", upload_id);
@@ -576,7 +583,7 @@ impl UploadInfo {
         let aws_id = self.aws_id.as_ref().unwrap();
 
         // Build signing string
-        let auth_parts = vec![
+        let auth_parts = [
             "AWS4-HMAC-SHA256".to_string(),
             timestamp.clone(),
             format!("{}/{}/s3/aws4_request", date, aws_region),

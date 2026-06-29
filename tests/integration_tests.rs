@@ -13,7 +13,10 @@ fn test_fixed_array() {
         .expect("failed to call fixedArray");
 
     // Verify we got a non-empty result
-    assert!(!result.is_empty(), "expected non-empty array, got empty result");
+    assert!(
+        !result.is_empty(),
+        "expected non-empty array, got empty result"
+    );
 
     println!("Fixed array test passed: {:?}", result);
 }
@@ -28,9 +31,14 @@ fn test_fixed_string() {
         .expect("failed to call fixedString");
 
     // Get the string value using the Response.get_string method
-    let str_value = response.get_string("").expect("failed to get string from response");
+    let str_value = response
+        .get_string("")
+        .expect("failed to get string from response");
 
-    assert!(!str_value.is_empty(), "expected non-empty string, got empty string");
+    assert!(
+        !str_value.is_empty(),
+        "expected non-empty string, got empty string"
+    );
 
     println!("Fixed string test passed: {}", str_value);
 }
@@ -59,18 +67,17 @@ fn test_error_unwrap() {
     let ctx = RestContext::new();
 
     // Test with the fieldError endpoint
-    let result = ctx.do_request(
-        "Misc/Debug:fieldError",
-        "GET",
-        serde_json::json!({"i": 42}),
-    );
+    let result = ctx.do_request("Misc/Debug:fieldError", "GET", serde_json::json!({"i": 42}));
 
     assert!(result.is_err(), "expected error but got Ok");
 
     // Verify it's a REST API error
     match result.unwrap_err() {
         RestError::Api { code, message, .. } => {
-            println!("Field error test passed: code={:?}, message={}", code, message);
+            println!(
+                "Field error test passed: code={:?}, message={}",
+                code, message
+            );
         }
         other => panic!("expected RestError::Api, got {:?}", other),
     }
@@ -196,9 +203,18 @@ fn test_response_as() {
     let data: TestData = response.apply().expect("apply failed");
 
     // Verify the data was correctly unmarshaled
-    assert_eq!(data.name, "test", "expected Name='test', got '{}'", data.name);
+    assert_eq!(
+        data.name, "test",
+        "expected Name='test', got '{}'",
+        data.name
+    );
     assert_eq!(data.value, 42, "expected Value=42, got {}", data.value);
-    assert_eq!(data.items.len(), 3, "expected 3 items, got {}", data.items.len());
+    assert_eq!(
+        data.items.len(),
+        3,
+        "expected 3 items, got {}",
+        data.items.len()
+    );
     assert_eq!(data.items[0], "one");
     assert_eq!(data.items[1], "two");
     assert_eq!(data.items[2], "three");
