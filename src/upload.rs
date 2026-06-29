@@ -1,16 +1,29 @@
-use crate::client::create_upload_client;
 use crate::error::{RestError, Result};
 use crate::response::Response;
 use crate::rest::RestContext;
-use reqwest::blocking::Client;
+use purecrypto::hash::sha256;
 use serde::Deserialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tempfile::NamedTempFile;
+
+/// Overall request timeout for uploads (1 hour).
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(3600);
+/// Connection establishment timeout.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Lowercase-hex encode a byte slice.
+fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        let _ = write!(s, "{:02x}", b);
+    }
+    s
+}
 
 /// Progress callback function type for upload progress tracking
 pub type UploadProgressFn = Box<dyn Fn(i64) + Send + Sync>;
@@ -24,8 +37,6 @@ pub struct UploadInfo {
     complete: String,
     /// Context for making API calls
     ctx: RestContext,
-    /// HTTP client for uploads
-    client: Client,
     /// Maximum size of a single part in MB (defaults to 1024)
     pub max_part_size: i64,
     /// Number of parallel uploads (defaults to 3)
@@ -164,7 +175,6 @@ impl UploadInfo {
             put,
             complete,
             ctx,
-            client: create_upload_client(),
             max_part_size: 1024,
             parallel_uploads: 3,
             progress: None,
@@ -265,17 +275,17 @@ impl UploadInfo {
         reader.read_to_end(&mut buffer)?;
 
         // Perform PUT request
-        let response = self
-            .client
-            .put(&self.put)
+        let response = rsurl::Request::new("PUT", &self.put)?
             .header("Content-Type", mime_type)
+            .max_time(UPLOAD_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
             .body(buffer)
             .send()?;
 
-        if !response.status().is_success() {
+        if !(200..300).contains(&response.status) {
             return Err(RestError::http(
-                response.status().as_u16(),
-                format!("PUT upload failed with status {}", response.status()),
+                response.status,
+                format!("PUT upload failed with status {}", response.status),
                 None,
             ));
         }
@@ -358,19 +368,19 @@ impl UploadInfo {
         let mut buffer = Vec::with_capacity(size as usize);
         file.read_to_end(&mut buffer)?;
 
-        let response = self
-            .client
-            .put(&self.put)
+        let response = rsurl::Request::new("PUT", &self.put)?
             .header("Content-Type", mime_type)
-            .header("Content-Range", format!("bytes {}-{}/*", start, end))
+            .header("Content-Range", &format!("bytes {}-{}/*", start, end))
+            .max_time(UPLOAD_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
             .body(buffer)
             .send()?;
 
-        if !response.status().is_success() {
+        if !(200..300).contains(&response.status) {
             nwg.done();
             return Err(RestError::http(
-                response.status().as_u16(),
-                format!("Part upload failed with status {}", response.status()),
+                response.status,
+                format!("Part upload failed with status {}", response.status),
                 None,
             ));
         }
@@ -473,9 +483,7 @@ impl UploadInfo {
 
         // Get ETag from response
         let etag = response
-            .headers()
-            .get("ETag")
-            .and_then(|v| v.to_str().ok())
+            .header("ETag")
             .ok_or_else(|| RestError::Other("Missing ETag in AWS response".to_string()))?
             .to_string();
 
@@ -552,23 +560,23 @@ impl UploadInfo {
         query: &str,
         body: &mut R,
         headers: Option<HashMap<String, String>>,
-    ) -> Result<reqwest::blocking::Response> {
+    ) -> Result<rsurl::Response> {
         let mut headers = headers.unwrap_or_default();
 
-        // Calculate body hash
-        let body_hash = if body.seek(SeekFrom::End(0))? == 0 {
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string()
-        } else {
-            body.seek(SeekFrom::Start(0))?;
-            let mut hasher = Sha256::new();
-            io::copy(body, &mut hasher)?;
-            body.seek(SeekFrom::Start(0))?;
-            format!("{:x}", hasher.finalize())
-        };
+        // Read the body into a buffer once; reuse it for hashing and sending.
+        body.seek(SeekFrom::Start(0))?;
+        let mut buffer = Vec::new();
+        body.read_to_end(&mut buffer)?;
 
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        // Calculate body hash (sha256 of the empty input is the well-known
+        // e3b0c4... digest, so the empty case needs no special handling).
+        let body_hash = hex(&sha256(&buffer));
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| RestError::Other(format!("system clock before unix epoch: {}", e)))?;
         let timestamp = chrono::DateTime::from_timestamp(now.as_secs() as i64, 0)
-            .unwrap()
+            .ok_or_else(|| RestError::Other("invalid system timestamp".to_string()))?
             .format("%Y%m%dT%H%M%SZ")
             .to_string();
         let date = &timestamp[..8];
@@ -610,37 +618,19 @@ impl UploadInfo {
         // Build URL
         let url = format!("https://{}/{}/{}?{}", aws_host, aws_name, aws_key, query);
 
-        // Read body into buffer
-        let mut buffer = Vec::new();
-        body.read_to_end(&mut buffer)?;
-
         // Make request
-        let response = self
-            .client
-            .request(
-                reqwest::Method::from_bytes(method.as_bytes())
-                    .map_err(|_| RestError::Other("Invalid HTTP method".to_string()))?,
-                &url,
-            )
-            .body(buffer)
-            .headers({
-                let mut header_map = reqwest::header::HeaderMap::new();
-                for (k, v) in headers {
-                    header_map.insert(
-                        reqwest::header::HeaderName::from_bytes(k.as_bytes())
-                            .map_err(|_| RestError::Other("Invalid header name".to_string()))?,
-                        reqwest::header::HeaderValue::from_str(&v)
-                            .map_err(|_| RestError::Other("Invalid header value".to_string()))?,
-                    );
-                }
-                header_map
-            })
-            .send()?;
+        let mut request = rsurl::Request::new(method, &url)?
+            .max_time(UPLOAD_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT);
+        for (k, v) in &headers {
+            request = request.header(k, v);
+        }
+        let response = request.body(buffer).send()?;
 
-        if !response.status().is_success() {
+        if !(200..300).contains(&response.status) {
             return Err(RestError::http(
-                response.status().as_u16(),
-                format!("AWS request failed with status {}", response.status()),
+                response.status,
+                format!("AWS request failed with status {}", response.status),
                 None,
             ));
         }

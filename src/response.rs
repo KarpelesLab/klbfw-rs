@@ -7,6 +7,7 @@ pub type Param = std::collections::HashMap<String, Value>;
 /// Response represents a REST API response with standard fields.
 /// It handles different result types and provides methods to access response data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Response {
     /// "success", "error", or "redirect"
     pub result: String,
@@ -70,67 +71,15 @@ impl Response {
         self.data.as_ref()
     }
 
-    /// Get the complete response as a map including metadata
+    /// Get the complete response as a map including metadata.
+    ///
+    /// Fields that are `None` are omitted (see the `skip_serializing_if`
+    /// attributes on the struct).
     pub fn full_raw(&self) -> serde_json::Map<String, Value> {
-        let mut map = serde_json::Map::new();
-
-        map.insert("result".to_string(), Value::String(self.result.clone()));
-
-        if let Some(ref data) = self.data {
-            map.insert("data".to_string(), data.clone());
+        match serde_json::to_value(self) {
+            Ok(Value::Object(map)) => map,
+            _ => serde_json::Map::new(),
         }
-
-        if let Some(ref error) = self.error {
-            map.insert("error".to_string(), Value::String(error.clone()));
-        }
-
-        if let Some(code) = self.code {
-            map.insert("code".to_string(), Value::Number(code.into()));
-        }
-
-        if let Some(ref extra) = self.extra {
-            map.insert("extra".to_string(), Value::String(extra.clone()));
-        }
-
-        if let Some(ref token) = self.token {
-            map.insert("token".to_string(), Value::String(token.clone()));
-        }
-
-        if let Some(ref paging) = self.paging {
-            map.insert("paging".to_string(), paging.clone());
-        }
-
-        if let Some(ref job) = self.job {
-            map.insert("job".to_string(), job.clone());
-        }
-
-        if let Some(ref time) = self.time {
-            map.insert("time".to_string(), time.clone());
-        }
-
-        if let Some(ref access) = self.access {
-            map.insert("access".to_string(), access.clone());
-        }
-
-        if let Some(ref exception) = self.exception {
-            map.insert("exception".to_string(), Value::String(exception.clone()));
-        }
-
-        if let Some(ref redirect_url) = self.redirect_url {
-            map.insert(
-                "redirect_url".to_string(),
-                Value::String(redirect_url.clone()),
-            );
-        }
-
-        if let Some(redirect_code) = self.redirect_code {
-            map.insert(
-                "redirect_code".to_string(),
-                Value::Number(redirect_code.into()),
-            );
-        }
-
-        map
     }
 
     /// Apply unmarshals the response data into the provided type

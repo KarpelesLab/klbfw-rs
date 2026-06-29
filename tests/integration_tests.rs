@@ -182,22 +182,11 @@ fn test_response_as() {
     });
 
     // Simulate a response
-    let response = klbfw::Response {
-        result: "success".to_string(),
-        data: Some(json_data),
-        error: None,
-        code: None,
-        extra: None,
-        token: None,
-        paging: None,
-        job: None,
-        time: None,
-        access: None,
-        exception: None,
-        redirect_url: None,
-        redirect_code: None,
-        request_id: None,
-    };
+    let response: klbfw::Response = serde_json::from_value(serde_json::json!({
+        "result": "success",
+        "data": json_data,
+    }))
+    .expect("failed to build response");
 
     // Use apply to unmarshal the data
     let data: TestData = response.apply().expect("apply failed");

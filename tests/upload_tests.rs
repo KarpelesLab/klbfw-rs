@@ -1,5 +1,5 @@
 use klbfw::{upload, RestContext};
-use sha2::{Digest, Sha256};
+use purecrypto::hash::sha256;
 use std::collections::HashMap;
 use std::io::Cursor;
 
@@ -13,8 +13,7 @@ fn generate_test_data(size: usize) -> Vec<u8> {
 
 /// Calculate SHA256 hash of data
 fn calculate_sha256(data: &[u8]) -> String {
-    let hash = Sha256::digest(data);
-    format!("{:x}", hash)
+    sha256(data).iter().map(|b| format!("{:02x}", b)).collect()
 }
 
 #[test]

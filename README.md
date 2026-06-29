@@ -25,7 +25,7 @@ This library provides a comprehensive client for interacting with RESTful API se
   - AWS S3 multipart uploads for large files (with automatic part size calculation)
   - Progress tracking callbacks
   - Parallel upload support
-- **Blocking HTTP Client**: Built on reqwest with connection pooling and timeouts
+- **Pure-Rust stack**: HTTP via [`rsurl`](https://crates.io/crates/rsurl), Ed25519/SHA-256 via [`purecrypto`](https://crates.io/crates/purecrypto), and IDNA host encoding via [`intl`](https://crates.io/crates/intl) — no `reqwest`/`ed25519-dalek`/`openssl` dependencies
 
 ## Installation
 
@@ -173,7 +173,7 @@ Based on the Go version (~/projects/rest):
 
 ## Differences from Go Version
 
-1. **Blocking vs Async**: This Rust version currently implements a blocking client using `reqwest::blocking`. The Go version uses standard `http.Client` which is also blocking.
+1. **Blocking vs Async**: This Rust version implements a blocking client using `rsurl`. The Go version uses standard `http.Client` which is also blocking.
 
 2. **Context**: Instead of Go's `context.Context`, this version uses `RestContext` which holds the client configuration and authentication.
 

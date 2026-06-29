@@ -42,24 +42,6 @@ jobs:
       - name: Test (all features)
         run: cargo test --all-features
 
-  features:
-    name: Feature matrix
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build (default features)
-        run: cargo build
-
-      - name: Build (async only, no default)
-        run: cargo build --no-default-features --features async
-
   msrv:
     name: MSRV (1.88)
     runs-on: ubuntu-latest

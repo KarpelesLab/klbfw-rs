@@ -1,33 +1,19 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature, Signer};
-use sha2::{Digest, Sha256};
+use purecrypto::ec::Ed25519PrivateKey;
+use purecrypto::hash::sha256;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-use url::form_urlencoded;
 use uuid::Uuid;
 
 use crate::error::{RestError, Result};
 
 /// ApiKey represents an API key with its secret for signing requests.
+#[derive(Clone)]
 pub struct ApiKey {
     /// API key identifier
     pub key_id: String,
-    /// Ed25519 keypair for signing
-    keypair: Keypair,
-}
-
-// Manually implement Clone since ed25519-dalek 1.0's Keypair doesn't implement Clone
-impl Clone for ApiKey {
-    fn clone(&self) -> Self {
-        ApiKey {
-            key_id: self.key_id.clone(),
-            keypair: Keypair {
-                secret: SecretKey::from_bytes(self.keypair.secret.as_bytes())
-                    .expect("valid secret key"),
-                public: self.keypair.public,
-            },
-        }
-    }
+    /// Ed25519 private key (seed) for signing
+    private_key: Ed25519PrivateKey,
 }
 
 impl ApiKey {
@@ -46,30 +32,23 @@ impl ApiKey {
             })
             .map_err(RestError::Base64Decode)?;
 
-        // Ed25519 secret keys are 32 bytes, but we may receive a 64-byte keypair
-        let secret_key = if decoded.len() == 32 {
-            // Just the secret key
-            SecretKey::from_bytes(&decoded)
-                .map_err(|_| RestError::Other("Invalid Ed25519 secret key".to_string()))?
-        } else if decoded.len() == 64 {
-            // Full keypair (secret + public)
-            SecretKey::from_bytes(&decoded[..32])
-                .map_err(|_| RestError::Other("Invalid Ed25519 secret key".to_string()))?
-        } else {
+        // Ed25519 secret keys are a 32-byte seed; a 64-byte input is the
+        // seed concatenated with the public key, so take the first 32 bytes.
+        if decoded.len() != 32 && decoded.len() != 64 {
             return Err(RestError::Other(format!(
                 "Invalid key length: expected 32 or 64 bytes, got {}",
                 decoded.len()
             )));
-        };
+        }
 
-        // Generate the public key from the secret key
-        let public_key: PublicKey = (&secret_key).into();
-        let keypair = Keypair {
-            secret: secret_key,
-            public: public_key,
-        };
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(&decoded[..32]);
+        let private_key = Ed25519PrivateKey::from_bytes(seed);
 
-        Ok(ApiKey { key_id, keypair })
+        Ok(ApiKey {
+            key_id,
+            private_key,
+        })
     }
 
     /// Generate a signature for a REST API request
@@ -79,7 +58,7 @@ impl ApiKey {
     /// * `path` - API endpoint path
     /// * `query_params` - Query parameters as key-value pairs
     /// * `body` - Request body bytes (if any)
-    pub fn generate_signature(
+    fn generate_signature(
         &self,
         method: &str,
         path: &str,
@@ -87,9 +66,7 @@ impl ApiKey {
         body: &[u8],
     ) -> Result<String> {
         // Generate SHA256 hash of the request body
-        let mut hasher = Sha256::new();
-        hasher.update(body);
-        let body_hash = hasher.finalize();
+        let body_hash = sha256(body);
 
         // Build query string (excluding _sign parameter)
         let mut params: Vec<(String, String)> = query_params
@@ -116,7 +93,7 @@ impl ApiKey {
         sign_string.extend_from_slice(&body_hash);
 
         // Sign using Ed25519
-        let signature: Signature = self.keypair.sign(&sign_string);
+        let signature = self.private_key.sign(&sign_string);
 
         // Encode signature as base64url
         let encoded = URL_SAFE_NO_PAD.encode(signature.to_bytes());
@@ -127,7 +104,7 @@ impl ApiKey {
     /// Apply API key parameters to query parameters
     ///
     /// Adds _key, _time, _nonce, and _sign parameters
-    pub fn apply_params(
+    pub(crate) fn apply_params(
         &self,
         method: &str,
         path: &str,
@@ -140,7 +117,7 @@ impl ApiKey {
         // Add timestamp
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .map_err(|e| RestError::Other(format!("system clock before unix epoch: {}", e)))?
             .as_secs();
         params.insert("_time".to_string(), timestamp.to_string());
 
@@ -161,7 +138,7 @@ impl std::fmt::Debug for ApiKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ApiKey")
             .field("key_id", &self.key_id)
-            .field("keypair", &"<redacted>")
+            .field("private_key", &"<redacted>")
             .finish()
     }
 }
@@ -182,7 +159,31 @@ mod tests {
 
     #[test]
     fn test_signature_generation() {
-        // Skip this test unless we have a valid test key
-        // In production, you would use a real Ed25519 key for testing
+        // A fixed 32-byte seed, base64url-encoded (no padding).
+        let seed = [7u8; 32];
+        let secret = URL_SAFE_NO_PAD.encode(seed);
+        let key = ApiKey::new("test-key".to_string(), &secret).unwrap();
+
+        let mut params = HashMap::new();
+        params.insert("foo".to_string(), "bar".to_string());
+
+        let sig = key
+            .generate_signature("GET", "Test/Path", &params, b"body")
+            .unwrap();
+
+        // Ed25519 is deterministic, so the signature must be stable for fixed
+        // inputs. This pins the wire format (server-side verification depends on
+        // it). The value is RFC-8032 compliant for the seed above.
+        assert_eq!(
+            sig,
+            "d2J6a7VPiW2OFs9wJkBQ_l0vgXT4HStyG0NJTNmfM6OIsE7Wt9w0XbnuhByxVYFOtHDljykF_qK5z4mSCvimDg",
+            "signature changed — this would break server-side verification"
+        );
+
+        // Signing twice yields the same signature.
+        let sig2 = key
+            .generate_signature("GET", "Test/Path", &params, b"body")
+            .unwrap();
+        assert_eq!(sig, sig2);
     }
 }

@@ -3,6 +3,7 @@ use thiserror::Error;
 
 /// Main error type for REST API operations
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RestError {
     /// Error returned by REST API endpoint
     #[error("REST API error: {message}")]
@@ -41,13 +42,9 @@ pub enum RestError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// HTTP client error
-    #[error("HTTP client error: {0}")]
-    Reqwest(#[from] reqwest::Error),
-
-    /// URL parsing error
-    #[error("URL parse error: {0}")]
-    UrlParse(#[from] url::ParseError),
+    /// HTTP transport error
+    #[error("transport error: {0}")]
+    Transport(#[from] rsurl::Error),
 
     /// Base64 decoding error
     #[error("Base64 decode error: {0}")]
