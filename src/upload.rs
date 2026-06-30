@@ -37,6 +37,10 @@ pub struct UploadInfo {
     complete: String,
     /// Context for making API calls
     ctx: RestContext,
+    /// Upper bound on the size of a single multipart part, in MB (defaults to
+    /// 1024). The part size is otherwise chosen automatically to target ~10000
+    /// parts; this caps that value.
+    pub max_part_size: i64,
     /// Number of parallel uploads (defaults to 3)
     pub parallel_uploads: usize,
     /// Progress callback
@@ -173,6 +177,7 @@ impl UploadInfo {
             put,
             complete,
             ctx,
+            max_part_size: 1024,
             parallel_uploads: 3,
             progress: None,
             blocksize: None,
@@ -398,7 +403,13 @@ impl UploadInfo {
         // (S3's multipart minimum). When the size is unknown (streaming), fall
         // back to 526 MiB, which stays under 10000 parts up to ~5 TB. This
         // matches the reference JS client; the previous MB-rounded formula could
-        // overshoot S3's 10000-part limit for some sizes.
+        // overshoot S3's 10000-part limit for some sizes. The auto value is then
+        // capped by the caller-configurable `max_part_size` (kept at or above the
+        // 5 MiB floor so the clamp range stays valid).
+        let cap = self
+            .max_part_size
+            .saturating_mul(1024 * 1024)
+            .max(5 * 1024 * 1024);
         let block_size: i64 = match file_size {
             Some(size) => {
                 if size > 5 * 1024 * 1024 * 1024 * 1024 {
@@ -407,9 +418,9 @@ impl UploadInfo {
                     ));
                 }
                 // ceil(size / 10000); size is non-negative here.
-                ((size + 9999) / 10000).max(5 * 1024 * 1024)
+                ((size + 9999) / 10000).clamp(5 * 1024 * 1024, cap)
             }
-            None => 551550976,
+            None => 551550976.min(cap),
         };
 
         // Initialize AWS multipart upload
