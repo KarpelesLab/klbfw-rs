@@ -291,3 +291,65 @@ fn test_upload_with_progress() {
 
     println!("Upload with progress test passed!");
 }
+
+#[test]
+#[ignore]
+fn test_upload_aws_multipart() {
+    let ctx = RestContext::new();
+
+    // 70MB forces the AWS S3 multipart path (file_size > 64MB in do_upload),
+    // which the smaller tests never reach. This exercises the SigV4 signing
+    // string, per-part PUTs, finalize, and the handleComplete step.
+    let data = generate_test_data(70 * 1024 * 1024);
+    let expected_hash = calculate_sha256(&data);
+
+    println!("Testing AWS multipart upload (70MB)...");
+    println!("Expected hash: {}", expected_hash);
+
+    let mut params = HashMap::new();
+    params.insert("filename".to_string(), serde_json::json!("test_aws.bin"));
+
+    let reader = Cursor::new(data);
+
+    use std::sync::{Arc, Mutex};
+    let total_uploaded = Arc::new(Mutex::new(0i64));
+    let total_clone = Arc::clone(&total_uploaded);
+
+    let response = upload(
+        &ctx,
+        "Misc/Debug:testUpload",
+        "POST",
+        params,
+        reader,
+        "application/octet-stream",
+        Some(Box::new(move |bytes| {
+            *total_clone.lock().unwrap() += bytes;
+        })),
+    )
+    .expect("failed to do AWS multipart upload");
+
+    // All bytes should have been reported through the progress callback.
+    assert_eq!(
+        *total_uploaded.lock().unwrap(),
+        70 * 1024 * 1024,
+        "progress total should equal the file size"
+    );
+
+    // Verify the SHA256 computed server-side matches.
+    if let Some(sha_value) = response.get_string("SHA256") {
+        assert_eq!(
+            sha_value, expected_hash,
+            "SHA256 mismatch: expected {}, got {}",
+            expected_hash, sha_value
+        );
+        println!("SHA256 verified: {}", sha_value);
+    }
+
+    let blob_value = response
+        .get_string("Blob__")
+        .expect("expected Blob__ field in response");
+
+    assert!(!blob_value.is_empty(), "Blob__ field should not be empty");
+
+    println!("AWS multipart upload test passed!");
+}

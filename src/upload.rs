@@ -37,8 +37,6 @@ pub struct UploadInfo {
     complete: String,
     /// Context for making API calls
     ctx: RestContext,
-    /// Maximum size of a single part in MB (defaults to 1024)
-    pub max_part_size: i64,
     /// Number of parallel uploads (defaults to 3)
     pub parallel_uploads: usize,
     /// Progress callback
@@ -175,7 +173,6 @@ impl UploadInfo {
             put,
             complete,
             ctx,
-            max_part_size: 1024,
             parallel_uploads: 3,
             progress: None,
             blocksize: None,
@@ -397,16 +394,23 @@ impl UploadInfo {
         mime_type: &str,
         file_size: Option<i64>,
     ) -> Result<Response> {
-        // Calculate optimal part size
-        if let Some(size) = file_size {
-            if size > 5 * 1024 * 1024 * 1024 * 1024 {
-                return Err(RestError::Other(
-                    "File exceeds AWS S3 5TB limit".to_string(),
-                ));
+        // Choose the part size in bytes: aim for ~10000 parts with a 5 MiB floor
+        // (S3's multipart minimum). When the size is unknown (streaming), fall
+        // back to 526 MiB, which stays under 10000 parts up to ~5 TB. This
+        // matches the reference JS client; the previous MB-rounded formula could
+        // overshoot S3's 10000-part limit for some sizes.
+        let block_size: i64 = match file_size {
+            Some(size) => {
+                if size > 5 * 1024 * 1024 * 1024 * 1024 {
+                    return Err(RestError::Other(
+                        "File exceeds AWS S3 5TB limit".to_string(),
+                    ));
+                }
+                // ceil(size / 10000); size is non-negative here.
+                ((size + 9999) / 10000).max(5 * 1024 * 1024)
             }
-            let part_size = (size / (10000 * 1024 * 1024)).max(5);
-            self.max_part_size = part_size;
-        }
+            None => 551550976,
+        };
 
         // Initialize AWS multipart upload
         self.aws_init(mime_type)?;
@@ -420,7 +424,7 @@ impl UploadInfo {
 
             // Create temp file for this part
             let mut temp_file = NamedTempFile::new()?;
-            let max_bytes = self.max_part_size * 1024 * 1024;
+            let max_bytes = block_size;
             let mut copied = 0i64;
             let mut buffer = vec![0u8; 8192];
 
@@ -458,8 +462,17 @@ impl UploadInfo {
         // Finalize AWS upload
         self.aws_finalize()?;
 
-        // Complete upload
-        self.complete()
+        // Trigger the server-side completion handler. The AWS multipart path
+        // uses a dedicated endpoint rather than the generic Complete URL.
+        let aws_id = self
+            .aws_id
+            .as_ref()
+            .ok_or_else(|| RestError::Other("AWS upload not initialized".to_string()))?;
+        self.ctx.do_request(
+            &format!("Cloud/Aws/Bucket/Upload/{}:handleComplete", aws_id),
+            "POST",
+            HashMap::<String, Value>::new(),
+        )
     }
 
     /// Upload a single part to AWS S3
@@ -590,8 +603,12 @@ impl UploadInfo {
         let aws_region = self.aws_region.as_ref().unwrap();
         let aws_id = self.aws_id.as_ref().unwrap();
 
-        // Build signing string
-        let auth_parts = [
+        // Build the string-to-sign for the server's signV4 endpoint. The server
+        // reconstructs the AWS SigV4 canonical request from these newline-joined
+        // lines, so every signed-header line, the signed-headers list, and the
+        // trailing payload hash must be present — otherwise AWS rejects the
+        // signature with HTTP 400. This mirrors the reference JS client.
+        let mut auth_parts = vec![
             "AWS4-HMAC-SHA256".to_string(),
             timestamp.clone(),
             format!("{}/{}/s3/aws4_request", date, aws_region),
@@ -600,6 +617,22 @@ impl UploadInfo {
             query.to_string(),
             format!("host:{}", aws_host),
         ];
+
+        // Sign "host" plus every x-* header, ordered by header name.
+        let mut signed_headers = vec!["host".to_string()];
+        let mut header_keys: Vec<&String> = headers.keys().collect();
+        header_keys.sort();
+        for key in header_keys {
+            let lower = key.to_lowercase();
+            if lower.starts_with("x-") {
+                auth_parts.push(format!("{}:{}", lower, headers[key]));
+                signed_headers.push(lower);
+            }
+        }
+
+        auth_parts.push(String::new());
+        auth_parts.push(signed_headers.join(";"));
+        auth_parts.push(body_hash.clone());
 
         // Get signature from API
         let auth_str = auth_parts.join("\n");
