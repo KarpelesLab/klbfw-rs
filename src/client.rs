@@ -29,6 +29,18 @@ impl Config {
         }
     }
 
+    /// Create a configuration for the given host, keeping the default `https`
+    /// scheme.
+    ///
+    /// The host may include a `:port` suffix. Use [`new`](Self::new) to also
+    /// override the scheme.
+    pub fn for_host(host: impl Into<String>) -> Self {
+        Config {
+            host: host.into(),
+            ..Config::default()
+        }
+    }
+
     /// Set debug mode (builder style)
     pub fn with_debug(mut self, debug: bool) -> Self {
         self.debug = debug;
@@ -99,6 +111,14 @@ mod tests {
     fn test_base_url_with_port() {
         let config = Config::new("http".to_string(), "localhost:8080".to_string());
         assert_eq!(config.base_url(), "http://localhost:8080");
+    }
+
+    #[test]
+    fn test_for_host_keeps_default_scheme() {
+        let config = Config::for_host("api.example.com");
+        assert_eq!(config.scheme(), "https");
+        assert_eq!(config.host(), "api.example.com");
+        assert_eq!(config.base_url(), "https://api.example.com");
     }
 
     #[test]

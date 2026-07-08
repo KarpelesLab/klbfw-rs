@@ -111,6 +111,15 @@ let config = Config::new(
 let ctx = RestContext::with_config(config);
 ```
 
+To point at a different host while keeping the default `https` scheme, use
+`Config::for_host`:
+
+```rust
+use klbfw::{RestContext, Config};
+
+let ctx = RestContext::with_config(Config::for_host("api.example.com"));
+```
+
 ### Custom Headers
 
 Attach custom headers that are sent with every request made through the

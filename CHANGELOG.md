@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `RestContext::with_header`, `with_headers`, `set_header`, and `headers` to
   attach custom headers to every request
+- `Config::for_host` to target a non-default host while keeping the default
+  `https` scheme
 
 ## [0.1.2](https://github.com/KarpelesLab/klbfw-rs/compare/v0.1.1...v0.1.2) - 2026-06-30
 
