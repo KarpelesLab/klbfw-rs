@@ -22,6 +22,8 @@ pub struct RestContext {
     token: Arc<Mutex<Option<Token>>>,
     /// Optional API key
     api_key: Option<ApiKey>,
+    /// Extra headers applied to every request (in insertion order)
+    headers: Vec<(String, String)>,
 }
 
 impl RestContext {
@@ -31,6 +33,7 @@ impl RestContext {
             config: Config::default(),
             token: Arc::new(Mutex::new(None)),
             api_key: None,
+            headers: Vec::new(),
         }
     }
 
@@ -40,6 +43,7 @@ impl RestContext {
             config,
             token: Arc::new(Mutex::new(None)),
             api_key: None,
+            headers: Vec::new(),
         }
     }
 
@@ -53,6 +57,41 @@ impl RestContext {
     pub fn with_api_key(mut self, api_key: ApiKey) -> Self {
         self.api_key = Some(api_key);
         self
+    }
+
+    /// Add a custom header applied to every request (builder style).
+    ///
+    /// Custom headers are sent in addition to the headers the client sets
+    /// automatically (`Authorization`, `Content-Type`, ...); they do not
+    /// replace them. Call multiple times to add several headers, including
+    /// repeated header names.
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.push((name.into(), value.into()));
+        self
+    }
+
+    /// Add several custom headers applied to every request (builder style).
+    ///
+    /// Headers are appended to any already set; see [`with_header`](Self::with_header).
+    pub fn with_headers<I, K, V>(mut self, headers: I) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.headers
+            .extend(headers.into_iter().map(|(k, v)| (k.into(), v.into())));
+        self
+    }
+
+    /// Add a custom header applied to every request (in place).
+    pub fn set_header(&mut self, name: impl Into<String>, value: impl Into<String>) {
+        self.headers.push((name.into(), value.into()));
+    }
+
+    /// The custom headers configured on this context.
+    pub fn headers(&self) -> &[(String, String)] {
+        &self.headers
     }
 
     /// Enable debug mode
@@ -168,6 +207,12 @@ impl RestContext {
             .max_time(REST_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT);
 
+        // Apply user-supplied custom headers before the client-managed ones so
+        // that Authorization/Content-Type set below take precedence.
+        for (name, value) in &self.headers {
+            request = request.header(name, value);
+        }
+
         if let Some(ref token) = current_token {
             request = request.header("Authorization", &format!("Bearer {}", token.access_token));
         }
@@ -256,11 +301,13 @@ impl RestContext {
             return Err(RestError::NoRefreshToken);
         }
 
-        // Create a context without token to avoid recursion
+        // Create a context without token to avoid recursion, preserving any
+        // custom headers so they apply to the renewal request too.
         let ctx = RestContext {
             config: self.config.clone(),
             token: Arc::new(Mutex::new(None)),
             api_key: None,
+            headers: self.headers.clone(),
         };
 
         let mut params = HashMap::new();
@@ -319,5 +366,24 @@ mod tests {
         let ctx = RestContext::with_config(config);
         assert_eq!(ctx.config().scheme(), "http");
         assert_eq!(ctx.config().host(), "localhost:8080");
+    }
+
+    #[test]
+    fn test_custom_headers() {
+        let ctx = RestContext::new()
+            .with_header("X-Custom", "one")
+            .with_headers([("X-A", "a"), ("X-B", "b")]);
+        assert_eq!(
+            ctx.headers(),
+            &[
+                ("X-Custom".to_string(), "one".to_string()),
+                ("X-A".to_string(), "a".to_string()),
+                ("X-B".to_string(), "b".to_string()),
+            ]
+        );
+
+        let mut ctx = ctx;
+        ctx.set_header("X-C", "c");
+        assert_eq!(ctx.headers().len(), 4);
     }
 }

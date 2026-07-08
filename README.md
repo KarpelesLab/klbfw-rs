@@ -111,6 +111,26 @@ let config = Config::new(
 let ctx = RestContext::with_config(config);
 ```
 
+### Custom Headers
+
+Attach custom headers that are sent with every request made through the
+context. They are added alongside the headers the client manages automatically
+(`Authorization`, `Content-Type`, ...) and do not replace them.
+
+```rust
+use klbfw::RestContext;
+
+let ctx = RestContext::new()
+    .with_header("X-Request-Source", "my-app")
+    .with_headers([
+        ("X-Feature-Flag", "beta"),
+        ("Accept-Language", "en-US"),
+    ]);
+```
+
+`set_header` adds a header in place (non-builder style), and `headers()`
+returns the configured headers.
+
 ### File Upload
 
 ```rust
