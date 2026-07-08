@@ -13,9 +13,12 @@ const REST_TIMEOUT: Duration = Duration::from_secs(300);
 /// Connection establishment timeout.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Context for REST API requests
+/// Client for REST API requests.
+///
+/// Holds the configuration, optional authentication (token or API key), and any
+/// custom headers, and exposes methods to make requests.
 #[derive(Clone)]
-pub struct RestContext {
+pub struct Client {
     /// Configuration
     config: Config,
     /// Optional authentication token (shared so renewals persist across calls)
@@ -26,10 +29,10 @@ pub struct RestContext {
     headers: Vec<(String, String)>,
 }
 
-impl RestContext {
+impl Client {
     /// Create a new REST context with default configuration
     pub fn new() -> Self {
-        RestContext {
+        Client {
             config: Config::default(),
             token: Arc::new(Mutex::new(None)),
             api_key: None,
@@ -39,7 +42,7 @@ impl RestContext {
 
     /// Create a new REST context with custom configuration
     pub fn with_config(config: Config) -> Self {
-        RestContext {
+        Client {
             config,
             token: Arc::new(Mutex::new(None)),
             api_key: None,
@@ -303,7 +306,7 @@ impl RestContext {
 
         // Create a context without token to avoid recursion, preserving any
         // custom headers so they apply to the renewal request too.
-        let ctx = RestContext {
+        let ctx = Client {
             config: self.config.clone(),
             token: Arc::new(Mutex::new(None)),
             api_key: None,
@@ -326,11 +329,18 @@ impl RestContext {
     }
 }
 
-impl Default for RestContext {
+impl Default for Client {
     fn default() -> Self {
         Self::new()
     }
 }
+
+/// Deprecated alias for [`Client`].
+///
+/// The type was renamed to [`Client`] to better match Rust conventions; this
+/// alias keeps existing code compiling.
+#[deprecated(since = "0.1.3", note = "renamed to `Client`; use `klbfw::Client` instead")]
+pub type RestContext = Client;
 
 /// Convenience function to create a new REST context and make a request
 pub fn apply<T, P>(path: &str, method: &str, param: P) -> Result<T>
@@ -338,7 +348,7 @@ where
     T: serde::de::DeserializeOwned,
     P: Serialize,
 {
-    RestContext::new().apply(path, method, param)
+    Client::new().apply(path, method, param)
 }
 
 /// Convenience function to create a new REST context and execute a request
@@ -346,7 +356,7 @@ pub fn do_request<P>(path: &str, method: &str, param: P) -> Result<Response>
 where
     P: Serialize,
 {
-    RestContext::new().do_request(path, method, param)
+    Client::new().do_request(path, method, param)
 }
 
 #[cfg(test)]
@@ -355,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_rest_context_creation() {
-        let ctx = RestContext::new();
+        let ctx = Client::new();
         assert_eq!(ctx.config().scheme(), "https");
         assert_eq!(ctx.config().host(), "www.atonline.com");
     }
@@ -363,14 +373,14 @@ mod tests {
     #[test]
     fn test_rest_context_with_config() {
         let config = Config::new("http".to_string(), "localhost:8080".to_string());
-        let ctx = RestContext::with_config(config);
+        let ctx = Client::with_config(config);
         assert_eq!(ctx.config().scheme(), "http");
         assert_eq!(ctx.config().host(), "localhost:8080");
     }
 
     #[test]
     fn test_custom_headers() {
-        let ctx = RestContext::new()
+        let ctx = Client::new()
             .with_header("X-Custom", "one")
             .with_headers([("X-A", "a"), ("X-B", "b")]);
         assert_eq!(
@@ -385,5 +395,13 @@ mod tests {
         let mut ctx = ctx;
         ctx.set_header("X-C", "c");
         assert_eq!(ctx.headers().len(), 4);
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_rest_context_alias() {
+        // The deprecated alias still resolves to `Client`.
+        let ctx: RestContext = RestContext::new();
+        assert_eq!(ctx.config().host(), "www.atonline.com");
     }
 }

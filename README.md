@@ -41,7 +41,7 @@ klbfw = "0.1"
 ### Basic Request
 
 ```rust
-use klbfw::RestContext;
+use klbfw::Client;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -51,8 +51,8 @@ struct User {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a REST context
-    let ctx = RestContext::new();
+    // Create a client
+    let ctx = Client::new();
 
     // Make a simple GET request
     let user: User = ctx.apply("Users/Get", "GET", serde_json::json!({
@@ -64,10 +64,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+> **Note:** `Client` was named `RestContext` before v0.1.3. The old name
+> remains available as a deprecated type alias and will be removed in a future
+> release; switch to `Client`.
+
 ### Token Authentication
 
 ```rust
-use klbfw::{RestContext, Token};
+use klbfw::{Client, Token};
 
 let token = Token::new(
     "access_token".to_string(),
@@ -76,7 +80,7 @@ let token = Token::new(
     3600,
 );
 
-let ctx = RestContext::new().with_token(token);
+let ctx = Client::new().with_token(token);
 
 // Make authenticated requests
 let response = ctx.do_request("Protected/Resource", "GET", serde_json::json!({}))?;
@@ -85,14 +89,14 @@ let response = ctx.do_request("Protected/Resource", "GET", serde_json::json!({})
 ### API Key Authentication
 
 ```rust
-use klbfw::{RestContext, ApiKey};
+use klbfw::{Client, ApiKey};
 
 let api_key = ApiKey::new(
     "key-12345".to_string(),
     "base64_encoded_secret",
 )?;
 
-let ctx = RestContext::new().with_api_key(api_key);
+let ctx = Client::new().with_api_key(api_key);
 
 // Requests are automatically signed
 let response = ctx.do_request("Protected/Resource", "GET", serde_json::json!({}))?;
@@ -101,35 +105,35 @@ let response = ctx.do_request("Protected/Resource", "GET", serde_json::json!({})
 ### Custom Configuration
 
 ```rust
-use klbfw::{RestContext, Config};
+use klbfw::{Client, Config};
 
 let config = Config::new(
     "https".to_string(),
     "api.example.com".to_string(),
 ).with_debug(true);
 
-let ctx = RestContext::with_config(config);
+let ctx = Client::with_config(config);
 ```
 
 To point at a different host while keeping the default `https` scheme, use
 `Config::for_host`:
 
 ```rust
-use klbfw::{RestContext, Config};
+use klbfw::{Client, Config};
 
-let ctx = RestContext::with_config(Config::for_host("api.example.com"));
+let ctx = Client::with_config(Config::for_host("api.example.com"));
 ```
 
 ### Custom Headers
 
 Attach custom headers that are sent with every request made through the
-context. They are added alongside the headers the client manages automatically
+client. They are added alongside the headers the client manages automatically
 (`Authorization`, `Content-Type`, ...) and do not replace them.
 
 ```rust
-use klbfw::RestContext;
+use klbfw::Client;
 
-let ctx = RestContext::new()
+let ctx = Client::new()
     .with_header("X-Request-Source", "my-app")
     .with_headers([
         ("X-Feature-Flag", "beta"),
@@ -143,11 +147,11 @@ returns the configured headers.
 ### File Upload
 
 ```rust
-use klbfw::{upload, RestContext};
+use klbfw::{upload, Client};
 use std::fs::File;
 use std::collections::HashMap;
 
-let ctx = RestContext::new();
+let ctx = Client::new();
 let file = File::open("largefile.dat")?;
 
 // Upload with progress tracking
@@ -204,7 +208,7 @@ Based on the Go version (~/projects/rest):
 
 1. **Blocking vs Async**: This Rust version implements a blocking client using `rsurl`. The Go version uses standard `http.Client` which is also blocking.
 
-2. **Context**: Instead of Go's `context.Context`, this version uses `RestContext` which holds the client configuration and authentication.
+2. **Context**: Instead of Go's `context.Context`, this version uses `Client` which holds the client configuration and authentication.
 
 3. **Error Handling**: Uses Rust's `Result` type and `thiserror` for error handling, with conversions to standard error types.
 

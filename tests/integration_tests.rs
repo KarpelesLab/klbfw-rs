@@ -1,11 +1,11 @@
-use klbfw::{RestContext, RestError};
+use klbfw::{Client, RestError};
 use serde::Deserialize;
 use std::collections::HashMap;
 
 #[test]
 #[ignore] // Run with: cargo test --test integration_tests -- --ignored
 fn test_fixed_array() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // Using apply to unmarshal into a map
     let result: HashMap<String, serde_json::Value> = ctx
@@ -24,7 +24,7 @@ fn test_fixed_array() {
 #[test]
 #[ignore]
 fn test_fixed_string() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     let response = ctx
         .do_request("Misc/Debug:fixedString", "GET", serde_json::json!({}))
@@ -46,7 +46,7 @@ fn test_fixed_string() {
 #[test]
 #[ignore]
 fn test_error() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     let result = ctx.do_request("Misc/Debug:error", "GET", serde_json::json!({}));
 
@@ -64,7 +64,7 @@ fn test_error() {
 #[test]
 #[ignore]
 fn test_error_unwrap() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // Test with the fieldError endpoint
     let result = ctx.do_request("Misc/Debug:fieldError", "GET", serde_json::json!({"i": 42}));
@@ -86,7 +86,7 @@ fn test_error_unwrap() {
 #[test]
 #[ignore]
 fn test_redirect() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     let result = ctx.do_request("Misc/Debug:testRedirect", "GET", serde_json::json!({}));
 
@@ -104,7 +104,7 @@ fn test_redirect() {
 #[test]
 #[ignore]
 fn test_argument() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     let test_value = "hello world";
 
@@ -134,7 +134,7 @@ fn test_argument() {
 #[test]
 #[ignore]
 fn test_arg_string() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     let test_value = "test string";
 

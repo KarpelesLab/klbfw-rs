@@ -1,6 +1,6 @@
 use crate::error::{RestError, Result};
 use crate::response::Response;
-use crate::rest::RestContext;
+use crate::rest::Client;
 use purecrypto::hash::sha256;
 use serde::Deserialize;
 use serde_json::Value;
@@ -36,7 +36,7 @@ pub struct UploadInfo {
     /// Complete endpoint to call after upload
     complete: String,
     /// Context for making API calls
-    ctx: RestContext,
+    ctx: Client,
     /// Upper bound on the size of a single multipart part, in MB (defaults to
     /// 1024). The part size is otherwise chosen automatically to target ~10000
     /// parts; this caps that value.
@@ -123,7 +123,7 @@ impl NumeralWaitGroup {
 /// * `mime_type` - MIME type of the file
 /// * `progress` - Optional progress callback
 pub fn upload<R: Read + Seek>(
-    ctx: &RestContext,
+    ctx: &Client,
     path: &str,
     method: &str,
     mut params: HashMap<String, Value>,
@@ -160,7 +160,7 @@ pub fn upload<R: Read + Seek>(
 
 impl UploadInfo {
     /// Prepare an upload from server response
-    pub fn prepare(req: HashMap<String, Value>, ctx: RestContext) -> Result<Self> {
+    pub fn prepare(req: HashMap<String, Value>, ctx: Client) -> Result<Self> {
         let put = req
             .get("PUT")
             .and_then(|v| v.as_str())

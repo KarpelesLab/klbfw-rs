@@ -1,4 +1,4 @@
-use klbfw::{upload, RestContext};
+use klbfw::{upload, Client};
 use purecrypto::hash::sha256;
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -19,7 +19,7 @@ fn calculate_sha256(data: &[u8]) -> String {
 #[test]
 #[ignore] // Run with: cargo test --test upload_tests -- --ignored
 fn test_upload_standard() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // Generate 16MB of test data
     let data = generate_test_data(16 * 1024 * 1024);
@@ -61,7 +61,7 @@ fn test_upload_standard() {
 #[test]
 #[ignore]
 fn test_upload_put_only() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // Generate 2MB of test data
     let data = generate_test_data(2 * 1024 * 1024);
@@ -113,7 +113,7 @@ fn test_upload_put_only() {
 #[test]
 #[ignore]
 fn test_upload_empty() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     println!("Testing empty file upload...");
 
@@ -153,7 +153,7 @@ fn test_upload_empty() {
 #[test]
 #[ignore]
 fn test_upload_empty_put_only() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     println!("Testing empty file upload (PUT-only)...");
 
@@ -196,7 +196,7 @@ fn test_upload_empty_put_only() {
 #[test]
 #[ignore]
 fn test_upload_65k() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // Generate exactly 65536 bytes of random data
     let data = generate_test_data(65536);
@@ -244,7 +244,7 @@ fn test_upload_65k() {
 #[test]
 #[ignore]
 fn test_upload_with_progress() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // Generate 5MB of test data
     let data = generate_test_data(5 * 1024 * 1024);
@@ -295,7 +295,7 @@ fn test_upload_with_progress() {
 #[test]
 #[ignore]
 fn test_upload_aws_multipart() {
-    let ctx = RestContext::new();
+    let ctx = Client::new();
 
     // 70MB forces the AWS S3 multipart path (file_size > 64MB in do_upload),
     // which the smaller tests never reach. This exercises the SigV4 signing

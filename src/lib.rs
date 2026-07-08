@@ -17,7 +17,7 @@
 //! ## Basic Usage
 //!
 //! ```no_run
-//! use klbfw::{RestContext, Response};
+//! use klbfw::{Client, Response};
 //! use serde::Deserialize;
 //!
 //! #[derive(Deserialize)]
@@ -27,8 +27,8 @@
 //! }
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a REST context
-//!     let ctx = RestContext::new();
+//!     // Create a client
+//!     let ctx = Client::new();
 //!
 //!     // Make a simple GET request
 //!     let user: User = ctx.apply("Users/Get", "GET", serde_json::json!({
@@ -45,7 +45,7 @@
 //! ### Token Authentication
 //!
 //! ```no_run
-//! use klbfw::{RestContext, Token};
+//! use klbfw::{Client, Token};
 //!
 //! let token = Token::new(
 //!     "access_token".to_string(),
@@ -54,20 +54,20 @@
 //!     3600,
 //! );
 //!
-//! let ctx = RestContext::new().with_token(token);
+//! let ctx = Client::new().with_token(token);
 //! ```
 //!
 //! ### API Key Authentication
 //!
 //! ```no_run
-//! use klbfw::{RestContext, ApiKey};
+//! use klbfw::{Client, ApiKey};
 //!
 //! let api_key = ApiKey::new(
 //!     "key-12345".to_string(),
 //!     "base64_encoded_secret",
 //! )?;
 //!
-//! let ctx = RestContext::new().with_api_key(api_key);
+//! let ctx = Client::new().with_api_key(api_key);
 //! # Ok::<(), klbfw::RestError>(())
 //! ```
 
@@ -85,7 +85,9 @@ pub use apikey::ApiKey;
 pub use client::Config;
 pub use error::{RestError, Result};
 pub use response::{Param, Response};
-pub use rest::{apply, do_request, RestContext};
+pub use rest::{apply, do_request, Client};
+#[allow(deprecated)]
+pub use rest::RestContext;
 pub use time::Time;
 pub use token::Token;
 pub use upload::{upload, UploadInfo, UploadProgressFn};
