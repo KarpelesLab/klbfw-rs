@@ -85,9 +85,9 @@ pub use apikey::ApiKey;
 pub use client::Config;
 pub use error::{RestError, Result};
 pub use response::{Param, Response};
-pub use rest::{apply, do_request, Client};
 #[allow(deprecated)]
 pub use rest::RestContext;
+pub use rest::{apply, do_request, Client};
 pub use time::Time;
 pub use token::Token;
 pub use upload::{upload, UploadInfo, UploadProgressFn};

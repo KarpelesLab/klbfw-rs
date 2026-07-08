@@ -339,7 +339,10 @@ impl Default for Client {
 ///
 /// The type was renamed to [`Client`] to better match Rust conventions; this
 /// alias keeps existing code compiling.
-#[deprecated(since = "0.1.3", note = "renamed to `Client`; use `klbfw::Client` instead")]
+#[deprecated(
+    since = "0.1.3",
+    note = "renamed to `Client`; use `klbfw::Client` instead"
+)]
 pub type RestContext = Client;
 
 /// Convenience function to create a new REST context and make a request
