@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/KarpelesLab/klbfw-rs/compare/v0.1.2...v0.1.3) - 2026-07-08
+
+### Added
+
+- add Config::for_host constructor
+- add custom headers to RestContext
+
+### Other
+
+- apply rustfmt to deprecation attribute and re-exports
+- rename RestContext to Client, deprecate old name
+
 ### Added
 
 - `Client`, the new name for the REST client type
