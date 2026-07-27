@@ -42,11 +42,13 @@ pub enum RestError {
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 
-    /// HTTP transport error
+    /// HTTP transport error (native only — the HTTP stack is not built on wasm)
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("transport error: {0}")]
     Transport(#[from] rsurl::Error),
 
-    /// Base64 decoding error
+    /// Base64 decoding error (native only — used by the HTTP/API-key paths)
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("Base64 decode error: {0}")]
     Base64Decode(#[from] base64::DecodeError),
 

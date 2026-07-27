@@ -71,29 +71,47 @@
 //! # Ok::<(), klbfw::RestError>(())
 //! ```
 
+// The HTTP stack (blocking rsurl, uuid, tempfile, quick-xml, form-urlencoded,
+// idna) is native-only — it cannot compile on wasm32. The browser reaches the
+// backend through the `spot` feature instead (REST over an authenticated Spot
+// connection), which needs only `response` + `error`. So on wasm this crate
+// exposes exactly `response`, `error`, and (with the feature) `spot`.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod apikey;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod client;
 pub mod error;
 pub mod response;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod rest;
 #[cfg(feature = "spot")]
 pub mod spot;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod time;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod token;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod upload;
 
 // Re-export main types for convenience
+#[cfg(not(target_arch = "wasm32"))]
 pub use apikey::ApiKey;
+#[cfg(not(target_arch = "wasm32"))]
 pub use client::Config;
 pub use error::{RestError, Result};
 pub use response::{Param, Response};
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(deprecated)]
 pub use rest::RestContext;
+#[cfg(not(target_arch = "wasm32"))]
 pub use rest::{apply, do_request, Client};
 #[cfg(feature = "spot")]
 pub use spot::{spot_apply, spot_do_request, SpotClient};
+#[cfg(not(target_arch = "wasm32"))]
 pub use time::Time;
+#[cfg(not(target_arch = "wasm32"))]
 pub use token::Token;
+#[cfg(not(target_arch = "wasm32"))]
 pub use upload::{upload, UploadInfo, UploadProgressFn};
 
 // Re-export serde_json for convenience
