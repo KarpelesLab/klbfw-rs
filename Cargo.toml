@@ -13,6 +13,14 @@ readme = "README.md"
 keywords = ["rest", "api", "client", "http", "oauth2"]
 categories = ["api-bindings", "network-programming", "web-programming::http-client"]
 
+[features]
+# REST requests over the Spot network (KarpelesLab `spotlib`) instead of HTTP —
+# frames {path,verb,params} and queries the platform API endpoint `@/p_api` over
+# an authenticated Spot connection. Dep-free: the caller supplies a `SpotClient`
+# adapter over its spotlib client (mirrors the Go `rest` package's SpotClient
+# interface, avoiding a spotlib dependency / dep-loop).
+spot = []
+
 [dependencies]
 # HTTP client (pure-Rust curl)
 rsurl = "0.1"

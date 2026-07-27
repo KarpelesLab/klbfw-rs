@@ -54,6 +54,11 @@ pub enum RestError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Spot-network transport error (feature `spot`) — the reply could not be
+    /// carried over the Spot connection.
+    #[error("Spot transport error: {0}")]
+    Spot(String),
+
     /// Other errors
     #[error("{0}")]
     Other(String),

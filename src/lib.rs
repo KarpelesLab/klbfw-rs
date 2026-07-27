@@ -76,6 +76,8 @@ pub mod client;
 pub mod error;
 pub mod response;
 pub mod rest;
+#[cfg(feature = "spot")]
+pub mod spot;
 pub mod time;
 pub mod token;
 pub mod upload;
@@ -88,6 +90,8 @@ pub use response::{Param, Response};
 #[allow(deprecated)]
 pub use rest::RestContext;
 pub use rest::{apply, do_request, Client};
+#[cfg(feature = "spot")]
+pub use spot::{spot_apply, spot_do_request, SpotClient};
 pub use time::Time;
 pub use token::Token;
 pub use upload::{upload, UploadInfo, UploadProgressFn};
