@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/KarpelesLab/klbfw-rs/compare/v0.1.4...v0.1.5) - 2026-09-20
+
+### Other
+
+- bump MSRV to 1.89
+- bump thiserror 2.0, base64 0.23, intl 0.6, quick-xml 0.42, rand 0.10
+- bump purecrypto to 0.9
+
 ## [0.1.4](https://github.com/KarpelesLab/klbfw-rs/compare/v0.1.3...v0.1.4) - 2026-07-27
 
 ### Added
