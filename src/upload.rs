@@ -702,4 +702,21 @@ mod tests {
         nwg.wait(3);
         // Should not block since count is 3
     }
+
+    #[test]
+    fn test_parse_aws_initiate_response() {
+        let body = r#"<?xml version="1.0" encoding="UTF-8"?>
+<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+   <Bucket>example-bucket</Bucket>
+   <Key>example-object</Key>
+   <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
+</InitiateMultipartUploadResult>"#;
+        let resp: UploadAwsResp = quick_xml::de::from_str(body).unwrap();
+        assert_eq!(resp.bucket, "example-bucket");
+        assert_eq!(resp.key, "example-object");
+        assert_eq!(
+            resp.upload_id,
+            "VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA"
+        );
+    }
 }

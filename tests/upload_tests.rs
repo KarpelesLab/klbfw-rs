@@ -5,9 +5,8 @@ use std::io::Cursor;
 
 /// Generate test data of specified size
 fn generate_test_data(size: usize) -> Vec<u8> {
-    use rand::RngCore;
     let mut data = vec![0u8; size];
-    rand::thread_rng().fill_bytes(&mut data);
+    rand::fill(&mut data[..]);
     data
 }
 
