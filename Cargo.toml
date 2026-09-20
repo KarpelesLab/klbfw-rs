@@ -39,7 +39,7 @@ rsurl = "0.1"
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
 # Cryptography for API key signing (Ed25519 + SHA-256)
-purecrypto = { version = "0.6", default-features = false, features = ["ec", "hash"] }
+purecrypto = { version = "0.9", default-features = false, features = ["ec", "hash"] }
 # Standard/URL-safe base64 (purecrypto only offers standard padded base64)
 base64 = "0.21"
 # UUID for nonces
@@ -53,4 +53,4 @@ quick-xml = { version = "0.31", features = ["serialize"] }
 
 [dev-dependencies]
 rand = "0.8"
-purecrypto = { version = "0.6", default-features = false, features = ["hash"] }
+purecrypto = { version = "0.9", default-features = false, features = ["hash"] }
