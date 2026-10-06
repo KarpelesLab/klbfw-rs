@@ -368,6 +368,13 @@ impl Client {
     }
 }
 
+// The `dyn Fn` renewal callback would otherwise strip these auto traits from
+// `Client`. A panic can leave nothing torn here: the callback is only ever
+// called through a shared reference, and the remaining state is plain data
+// behind a (poisoning) `Mutex`.
+impl std::panic::UnwindSafe for Client {}
+impl std::panic::RefUnwindSafe for Client {}
+
 impl Default for Client {
     fn default() -> Self {
         Self::new()
@@ -410,6 +417,12 @@ mod tests {
         let ctx = Client::new();
         assert_eq!(ctx.config().scheme(), "https");
         assert_eq!(ctx.config().host(), "www.atonline.com");
+    }
+
+    #[test]
+    fn test_client_auto_traits() {
+        fn assert_auto<T: Send + Sync + std::panic::UnwindSafe + std::panic::RefUnwindSafe>() {}
+        assert_auto::<Client>();
     }
 
     #[test]
