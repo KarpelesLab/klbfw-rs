@@ -8,8 +8,9 @@ pub struct Token {
     #[serde(rename = "access_token")]
     pub access_token: String,
 
-    /// Refresh token for renewing expired access tokens
-    #[serde(rename = "refresh_token")]
+    /// Refresh token for renewing expired access tokens. Empty when the server
+    /// did not issue one (it is optional in an OAuth2 token response).
+    #[serde(rename = "refresh_token", default)]
     pub refresh_token: String,
 
     /// Token type (usually "Bearer")
@@ -20,8 +21,8 @@ pub struct Token {
     #[serde(skip)]
     pub client_id: String,
 
-    /// Token expiration time in seconds
-    #[serde(rename = "expires_in")]
+    /// Token expiration time in seconds (0 when the server did not report one)
+    #[serde(rename = "expires_in", default)]
     pub expires_in: i32,
 }
 
@@ -86,5 +87,16 @@ mod tests {
         let json = serde_json::to_string(&token).unwrap();
         assert!(json.contains("access_token"));
         assert!(json.contains("refresh_token"));
+    }
+
+    #[test]
+    fn test_token_without_refresh_token() {
+        // A token response may omit refresh_token and expires_in.
+        let token: Token =
+            serde_json::from_str(r#"{"access_token":"access123","token_type":"Bearer"}"#).unwrap();
+
+        assert_eq!(token.access_token, "access123");
+        assert!(!token.has_refresh_token());
+        assert_eq!(token.expires_in, 0);
     }
 }

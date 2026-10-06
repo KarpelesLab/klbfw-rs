@@ -84,6 +84,12 @@ let ctx = Client::new().with_token(token);
 
 // Make authenticated requests
 let response = ctx.do_request("Protected/Resource", "GET", serde_json::json!({}))?;
+
+// An expired access token is renewed automatically. Read the current token
+// back to persist it (the refresh token may have been rotated).
+if let Some(token) = ctx.token() {
+    // save token.access_token / token.refresh_token
+}
 ```
 
 ### API Key Authentication

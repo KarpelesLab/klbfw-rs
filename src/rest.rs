@@ -56,6 +56,16 @@ impl Client {
         self
     }
 
+    /// Get a copy of the current authentication token, if any.
+    ///
+    /// When an access token expires the client renews it transparently and
+    /// keeps the renewed token (shared across clones of this client). Read it
+    /// back here after making requests to persist it — a renewal may rotate
+    /// the refresh token, which invalidates the one originally supplied.
+    pub fn token(&self) -> Option<Token> {
+        self.token.lock().unwrap().clone()
+    }
+
     /// Set the API key
     pub fn with_api_key(mut self, api_key: ApiKey) -> Self {
         self.api_key = Some(api_key);
@@ -325,6 +335,12 @@ impl Client {
         // the token remains renewable.
         renewed.client_id = token.client_id.clone();
 
+        // The server may omit refresh_token when it does not rotate it; the
+        // previous one then stays valid (RFC 6749 §6).
+        if !renewed.has_refresh_token() {
+            renewed.refresh_token = token.refresh_token.clone();
+        }
+
         Ok(renewed)
     }
 }
@@ -371,6 +387,23 @@ mod tests {
         let ctx = Client::new();
         assert_eq!(ctx.config().scheme(), "https");
         assert_eq!(ctx.config().host(), "www.atonline.com");
+    }
+
+    #[test]
+    fn test_token_getter() {
+        let ctx = Client::new();
+        assert!(ctx.token().is_none());
+
+        let ctx = ctx.with_token(Token::new(
+            "access123".to_string(),
+            "refresh456".to_string(),
+            "client789".to_string(),
+            3600,
+        ));
+        // Clones share the token, so a renewal on one is visible on the other.
+        let token = ctx.clone().token().unwrap();
+        assert_eq!(token.access_token, "access123");
+        assert_eq!(token.refresh_token, "refresh456");
     }
 
     #[test]
