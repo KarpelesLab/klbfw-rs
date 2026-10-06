@@ -104,7 +104,7 @@ pub use response::{Param, Response};
 #[allow(deprecated)]
 pub use rest::RestContext;
 #[cfg(not(target_arch = "wasm32"))]
-pub use rest::{apply, do_request, Client};
+pub use rest::{apply, do_request, Client, TokenRenewedFn};
 #[cfg(feature = "spot")]
 pub use spot::{spot_apply, spot_do_request, SpotClient};
 #[cfg(not(target_arch = "wasm32"))]

@@ -13,6 +13,9 @@ const REST_TIMEOUT: Duration = Duration::from_secs(300);
 /// Connection establishment timeout.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Callback invoked with the new token each time the client renews it.
+pub type TokenRenewedFn = dyn Fn(&Token) + Send + Sync;
+
 /// Client for REST API requests.
 ///
 /// Holds the configuration, optional authentication (token or API key), and any
@@ -27,6 +30,8 @@ pub struct Client {
     api_key: Option<ApiKey>,
     /// Extra headers applied to every request (in insertion order)
     headers: Vec<(String, String)>,
+    /// Optional callback invoked after each successful token renewal
+    on_token_renewed: Option<Arc<TokenRenewedFn>>,
 }
 
 impl Client {
@@ -37,6 +42,7 @@ impl Client {
             token: Arc::new(Mutex::new(None)),
             api_key: None,
             headers: Vec::new(),
+            on_token_renewed: None,
         }
     }
 
@@ -47,6 +53,7 @@ impl Client {
             token: Arc::new(Mutex::new(None)),
             api_key: None,
             headers: Vec::new(),
+            on_token_renewed: None,
         }
     }
 
@@ -61,9 +68,21 @@ impl Client {
     /// When an access token expires the client renews it transparently and
     /// keeps the renewed token (shared across clones of this client). Read it
     /// back here after making requests to persist it — a renewal may rotate
-    /// the refresh token, which invalidates the one originally supplied.
+    /// the refresh token, which invalidates the one originally supplied. To be
+    /// told when that happens, see [`Client::on_token_renewed`].
     pub fn token(&self) -> Option<Token> {
         self.token.lock().unwrap().clone()
+    }
+
+    /// Register a callback invoked with the new token each time an expired
+    /// token is renewed (builder style) — the place to persist it.
+    ///
+    /// The callback runs on the thread making the request, after the client
+    /// has stored the renewed token and before the request is retried. Only
+    /// one callback is kept; calling this again replaces it.
+    pub fn on_token_renewed(mut self, callback: impl Fn(&Token) + Send + Sync + 'static) -> Self {
+        self.on_token_renewed = Some(Arc::new(callback));
+        self
     }
 
     /// Set the API key
@@ -281,7 +300,10 @@ impl Client {
 
                     // Renew and persist the new token so later calls reuse it.
                     let renewed = self.renew_token(&token)?;
-                    *self.token.lock().unwrap() = Some(renewed);
+                    *self.token.lock().unwrap() = Some(renewed.clone());
+                    if let Some(ref callback) = self.on_token_renewed {
+                        callback(&renewed);
+                    }
 
                     // Retry the request once with the renewed token.
                     return self.request_inner(path, method, param_json, false);
@@ -321,6 +343,7 @@ impl Client {
             token: Arc::new(Mutex::new(None)),
             api_key: None,
             headers: self.headers.clone(),
+            on_token_renewed: None,
         };
 
         let mut params = HashMap::new();

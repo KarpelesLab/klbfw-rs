@@ -90,6 +90,11 @@ let response = ctx.do_request("Protected/Resource", "GET", serde_json::json!({})
 if let Some(token) = ctx.token() {
     // save token.access_token / token.refresh_token
 }
+
+// Or be notified at the moment of renewal:
+let ctx = ctx.on_token_renewed(|token| {
+    // save token.access_token / token.refresh_token
+});
 ```
 
 ### API Key Authentication
