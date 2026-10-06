@@ -2,13 +2,13 @@ use crate::error::{RestError, Result};
 use crate::response::Response;
 use crate::rest::Client;
 use purecrypto::hash::sha256;
+use rsurl::TempBlob;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tempfile::NamedTempFile;
 
 /// Overall request timeout for uploads (1 hour).
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(3600);
@@ -23,6 +23,19 @@ fn hex(bytes: &[u8]) -> String {
         let _ = write!(s, "{:02x}", b);
     }
     s
+}
+
+/// Spool up to `max` bytes from `reader` into anonymous temporary storage
+/// (short only at EOF).
+///
+/// The part lives in memory up to `memory_threshold` bytes and spills to an
+/// **un-named** OS temp file beyond that ([`rsurl::TempBlob`]: `O_TMPFILE` on
+/// Linux, create-then-unlink elsewhere, delete-on-close on Windows), so a
+/// crashing process leaves nothing behind in the temp directory.
+fn read_part<R: Read>(reader: &mut R, max: i64, memory_threshold: u64) -> Result<TempBlob> {
+    let mut part = TempBlob::with_threshold(memory_threshold);
+    io::copy(&mut reader.take(max.max(0) as u64), &mut part)?;
+    Ok(part)
 }
 
 /// Progress callback function type for upload progress tracking
@@ -43,6 +56,12 @@ pub struct UploadInfo {
     pub max_part_size: i64,
     /// Number of parallel uploads (defaults to 3)
     pub parallel_uploads: usize,
+    /// Multipart parts up to this many bytes are held in memory; larger ones
+    /// are spooled to an un-named temporary file (no directory entry, so
+    /// nothing is left behind if the process dies). Defaults to 1 MiB
+    /// ([`rsurl::tmpfile::DEFAULT_SPILL_THRESHOLD`]); set to `u64::MAX` to
+    /// never touch the disk.
+    pub part_memory_threshold: u64,
     /// Progress callback
     progress: Option<Arc<UploadProgressFn>>,
 
@@ -179,6 +198,7 @@ impl UploadInfo {
             ctx,
             max_part_size: 1024,
             parallel_uploads: 3,
+            part_memory_threshold: rsurl::tmpfile::DEFAULT_SPILL_THRESHOLD,
             progress: None,
             blocksize: None,
             aws_id: None,
@@ -313,22 +333,9 @@ impl UploadInfo {
             nwg.wait((self.parallel_uploads - 1) as i32);
             part_no += 1;
 
-            // Create temp file for this part
-            let mut temp_file = NamedTempFile::new()?;
-            let mut copied = 0i64;
-            let mut buffer = vec![0u8; 8192];
-
-            // Read blocksize bytes into temp file
-            while copied < blocksize {
-                let to_read = std::cmp::min(buffer.len() as i64, blocksize - copied) as usize;
-                match reader.read(&mut buffer[..to_read])? {
-                    0 => break,
-                    n => {
-                        temp_file.write_all(&buffer[..n])?;
-                        copied += n as i64;
-                    }
-                }
-            }
+            // Read up to blocksize bytes for this part
+            let part = read_part(reader, blocksize, self.part_memory_threshold)?;
+            let copied = part.len() as i64;
 
             if copied == 0 {
                 break;
@@ -340,7 +347,7 @@ impl UploadInfo {
             };
             nwg.add(1);
 
-            self.upload_part(temp_file, mime_type, part_no, copied, blocksize, nwg_clone)?;
+            self.upload_part(part, mime_type, part_no, blocksize, nwg_clone)?;
 
             if copied < blocksize {
                 break; // EOF
@@ -354,28 +361,22 @@ impl UploadInfo {
     /// Upload a single part
     fn upload_part(
         &self,
-        temp_file: NamedTempFile,
+        part: TempBlob,
         mime_type: &str,
         part_no: i32,
-        size: i64,
         blocksize: i64,
         nwg: NumeralWaitGroup,
     ) -> Result<()> {
-        let mut file = temp_file.reopen()?;
-        file.seek(SeekFrom::Start(0))?;
-
+        let size = part.len() as i64;
         let start = (part_no - 1) as i64 * blocksize;
         let end = start + size - 1;
-
-        let mut buffer = Vec::with_capacity(size as usize);
-        file.read_to_end(&mut buffer)?;
 
         let response = rsurl::Request::new("PUT", &self.put)?
             .header("Content-Type", mime_type)
             .header("Content-Range", &format!("bytes {}-{}/*", start, end))
             .max_time(UPLOAD_TIMEOUT)
             .connect_timeout(CONNECT_TIMEOUT)
-            .body(buffer)
+            .body(part.to_vec()?)
             .send()?;
 
         if !(200..300).contains(&response.status) {
@@ -433,23 +434,10 @@ impl UploadInfo {
             nwg.wait((self.parallel_uploads - 1) as i32);
             part_no += 1;
 
-            // Create temp file for this part
-            let mut temp_file = NamedTempFile::new()?;
+            // Read up to max_bytes for this part
             let max_bytes = block_size;
-            let mut copied = 0i64;
-            let mut buffer = vec![0u8; 8192];
-
-            // Read max_bytes into temp file
-            while copied < max_bytes {
-                let to_read = std::cmp::min(buffer.len() as i64, max_bytes - copied) as usize;
-                match reader.read(&mut buffer[..to_read])? {
-                    0 => break,
-                    n => {
-                        temp_file.write_all(&buffer[..n])?;
-                        copied += n as i64;
-                    }
-                }
-            }
+            let part = read_part(reader, max_bytes, self.part_memory_threshold)?;
+            let copied = part.len() as i64;
 
             if copied == 0 && part_no != 1 {
                 break;
@@ -461,7 +449,7 @@ impl UploadInfo {
             };
             nwg.add(1);
 
-            self.aws_upload_part(temp_file, part_no, copied, nwg_clone)?;
+            self.aws_upload_part(part, part_no, nwg_clone)?;
 
             if copied < max_bytes {
                 break; // EOF
@@ -487,15 +475,8 @@ impl UploadInfo {
     }
 
     /// Upload a single part to AWS S3
-    fn aws_upload_part(
-        &self,
-        temp_file: NamedTempFile,
-        part_no: i32,
-        size: i64,
-        nwg: NumeralWaitGroup,
-    ) -> Result<()> {
-        let mut file = temp_file.reopen()?;
-        file.seek(SeekFrom::Start(0))?;
+    fn aws_upload_part(&self, part: TempBlob, part_no: i32, nwg: NumeralWaitGroup) -> Result<()> {
+        let size = part.len() as i64;
 
         let upload_id = self
             .aws_upload_id
@@ -503,7 +484,7 @@ impl UploadInfo {
             .ok_or_else(|| RestError::Other("AWS upload not initialized".to_string()))?;
 
         let query = format!("partNumber={}&uploadId={}", part_no, upload_id);
-        let response = self.aws_request("PUT", &query, &mut file, None)?;
+        let response = self.aws_request("PUT", &query, part.to_vec()?, None)?;
 
         // Get ETag from response
         let etag = response
@@ -536,7 +517,7 @@ impl UploadInfo {
         headers.insert("Content-Type".to_string(), mime_type.to_string());
         headers.insert("X-Amz-Acl".to_string(), "private".to_string());
 
-        let response = self.aws_request("POST", "uploads=", &mut io::empty(), Some(headers))?;
+        let response = self.aws_request("POST", "uploads=", Vec::new(), Some(headers))?;
 
         let body = response.text()?;
         let aws_resp: UploadAwsResp = quick_xml::de::from_str(&body)
@@ -569,8 +550,7 @@ impl UploadInfo {
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "text/xml".to_string());
 
-        let mut cursor = io::Cursor::new(xml.as_bytes());
-        let response = self.aws_request("POST", &query, &mut cursor, Some(headers))?;
+        let response = self.aws_request("POST", &query, xml.into_bytes(), Some(headers))?;
 
         // Read response to ensure completion
         let _ = response.text()?;
@@ -578,19 +558,14 @@ impl UploadInfo {
     }
 
     /// Make an AWS S3 request with signature
-    fn aws_request<R: Read + Seek>(
+    fn aws_request(
         &self,
         method: &str,
         query: &str,
-        body: &mut R,
+        buffer: Vec<u8>,
         headers: Option<HashMap<String, String>>,
     ) -> Result<rsurl::Response> {
         let mut headers = headers.unwrap_or_default();
-
-        // Read the body into a buffer once; reuse it for hashing and sending.
-        body.seek(SeekFrom::Start(0))?;
-        let mut buffer = Vec::new();
-        body.read_to_end(&mut buffer)?;
 
         // Calculate body hash (sha256 of the empty input is the well-known
         // e3b0c4... digest, so the empty case needs no special handling).
@@ -692,6 +667,22 @@ impl UploadInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_read_part() {
+        // Threshold 0 spills every part to an un-named file; u64::MAX never does.
+        for threshold in [0, u64::MAX] {
+            let mut reader = std::io::Cursor::new(b"0123456789".to_vec());
+            let part = read_part(&mut reader, 4, threshold).unwrap();
+            assert_eq!(part.is_in_memory(), threshold == u64::MAX);
+            assert_eq!(part.to_vec().unwrap(), b"0123");
+            assert_eq!(read_part(&mut reader, 4, threshold).unwrap().len(), 4);
+            // Short read at EOF, then empty.
+            let tail = read_part(&mut reader, 4, threshold).unwrap();
+            assert_eq!(tail.to_vec().unwrap(), b"89");
+            assert!(read_part(&mut reader, 4, threshold).unwrap().is_empty());
+        }
+    }
 
     #[test]
     fn test_numeral_wait_group() {

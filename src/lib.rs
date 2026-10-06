@@ -71,7 +71,7 @@
 //! # Ok::<(), klbfw::RestError>(())
 //! ```
 
-// The HTTP stack (blocking rsurl, uuid, tempfile, quick-xml, form-urlencoded,
+// The HTTP stack (blocking rsurl, uuid, quick-xml, form-urlencoded,
 // idna) is native-only — it cannot compile on wasm32. The browser reaches the
 // backend through the `spot` feature instead (REST over an authenticated Spot
 // connection), which needs only `response` + `error`. So on wasm this crate

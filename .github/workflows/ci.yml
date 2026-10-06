@@ -57,6 +57,33 @@ jobs:
       - name: Build (all features)
         run: cargo build --all-features
 
+  fullrust:
+    name: fullrust (libc-free static Linux)
+    runs-on: ubuntu-latest
+    # `x86_64-unknown-linux-fullrust` is a patched toolchain whose std talks to
+    # the kernel through raw syscalls instead of libc. The target is NOT in the
+    # `unix` family (`cfg(unix)` and `cfg(windows)` are both false), so
+    # dependencies fall back to their "other platform" arms — which may compile
+    # yet fail at runtime. Build and test here so that can't creep back in.
+    #
+    # The image is pinned to Rust 1.89, this crate's `rust-version`. It ships no
+    # rustdoc, hence `--lib --tests` (no doctests).
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build (all features)
+        uses: KarpelesLab/fullrust@master
+        with:
+          image: ghcr.io/karpeleslab/fullrust:1.89
+          args: --all-features
+
+      - name: Test (all features)
+        uses: KarpelesLab/fullrust@master
+        with:
+          image: ghcr.io/karpeleslab/fullrust:1.89
+          command: test
+          args: --all-features --lib --tests
+
   docs:
     name: Docs build (warnings denied)
     runs-on: ubuntu-latest
