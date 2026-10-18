@@ -2,7 +2,7 @@
 name = "klbfw"
 version = "0.1.7"
 edition = "2021"
-rust-version = "1.89"
+rust-version = "1.95"
 authors = ["KarpelesLab"]
 description = "Comprehensive REST API client with OAuth2, API key authentication, and file upload support"
 license = "MIT"
